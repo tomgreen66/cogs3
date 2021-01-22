@@ -1,4 +1,7 @@
+import csv
+
 from django.contrib import admin
+from django.http import HttpResponse
 
 from project.forms import ProjectAdminForm, ProjectUserMembershipAdminForm
 from project.models import (Project, ProjectCategory, ProjectFundingSource,
@@ -112,9 +115,29 @@ class ProjectAdmin(admin.ModelAdmin):
         self.message_user(request, '{message} successfully submitted for deactivation.'.format(message=message))
 
     deactivate_projects.short_description = 'Deactivate selected projects in LDAP'
+    
+    def export_projects(self, request, queryset):
+        rows_updated = 0
+        meta = self.model._meta
+        field_names = [field.name for field in meta.fields]
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename={}.csv'.format(meta)
+        writer = csv.writer(response)
+
+        writer.writerow(field_names)
+   
+        for project in queryset:
+            row = writer.writerow([getattr(project, field) for field in field_names])
+            rows_updated += 1
+        message = self._project_action_message(rows_updated)
+        self.message_user(request, '{message} successfully exported.'.format(message=message))
+        return response
+    
+    export_projects.short_description = 'Export selected projects to CSV'
 
     form = ProjectAdminForm
-    actions = [activate_projects, deactivate_projects]
+    actions = [activate_projects, deactivate_projects, export_projects]
 
     # Fields to be used when displaying a Project instance.
     list_display = (
